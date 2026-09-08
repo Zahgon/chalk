@@ -1,4 +1,11 @@
-node_modules
-yarn.lock
-coverage
-.nyc_output
+# Go build and test artifacts.
+# Migrated from the upstream JavaScript .gitignore, whose entries
+# (node_modules, yarn.lock, coverage, .nyc_output) have no Go meaning.
+# vendor/ is deliberately committed, not ignored: the differential oracles in
+# tools/ already require a pinned upstream checkout, so the Go side pins its
+# own dependencies the same way and builds without network access.
+*.test
+*.exe
+coverage.out
+coverage.html
+.DS_Store

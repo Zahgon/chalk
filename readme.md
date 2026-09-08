@@ -7,325 +7,160 @@
 	<br>
 </h1>
 
-> Terminal string styling done right
-
-[![Coverage Status](https://codecov.io/gh/chalk/chalk/branch/main/graph/badge.svg)](https://codecov.io/gh/chalk/chalk)
-[![npm dependents](https://badgen.net/npm/dependents/chalk)](https://www.npmjs.com/package/chalk?activeTab=dependents)
-[![Downloads](https://badgen.net/npm/dt/chalk)](https://www.npmjs.com/package/chalk)
+> Terminal string styling done right — a complete Go port of [chalk](https://github.com/chalk/chalk) v6.0.0
 
 ![](media/screenshot.png)
 
-## Info
-
-- [Why not switch to a smaller coloring package?](https://github.com/chalk/chalk?tab=readme-ov-file#why-not-switch-to-a-smaller-coloring-package)
-- See [yoctocolors](https://github.com/sindresorhus/yoctocolors) for a smaller alternative
-
-## Highlights
-
-- Expressive API
-- Highly performant
-- No dependencies
-- Ability to nest styles
-- [256/Truecolor color support](#256-and-truecolor-color-support)
-- Auto-detects color support
-- Doesn't extend `String.prototype`
-- Clean and focused
-- Actively maintained
-- [Used by ~115,000 packages](https://www.npmjs.com/browse/depended/chalk) as of July 4, 2024
+This is a behavioural port, not a reinterpretation. Rendering, terminal capability detection, color downsampling, nested-style repair and per-line style reopening all reproduce the JavaScript implementation exactly, and that claim is enforced by a golden corpus of 7,992 cases generated from the original source.
 
 ## Install
 
 ```sh
-npm install chalk
+go get github.com/chalk/chalk-go
 ```
-
-**IMPORTANT:** Chalk 5 is ESM. If you want to use Chalk with TypeScript or a build tool, you will probably want to use Chalk 4 for now. [Read more.](https://github.com/chalk/chalk/releases/tag/v5.0.0)
 
 ## Usage
 
-```js
-import chalk from 'chalk';
+```go
+package main
 
-console.log(chalk.blue('Hello world!'));
-```
+import (
+	"fmt"
 
-Chalk comes with an easy to use composable API where you just chain and nest the styles you want.
+	"github.com/chalk/chalk-go"
+)
 
-```js
-import chalk from 'chalk';
+func main() {
+	fmt.Println(chalk.Blue().Sprint("Hello world!"))
 
-const log = console.log;
+	// Compose styles.
+	fmt.Println(chalk.Blue().BgRed().Bold().Sprint("Hello world!"))
 
-// Combine styled and normal strings
-log(chalk.blue('Hello') + ' World' + chalk.red('!'));
+	// Multiple operands, joined with a single space.
+	fmt.Println(chalk.Blue().Sprint("Hello", "World"))
 
-// Compose multiple styles using the chainable API
-log(chalk.blue.bgRed.bold('Hello world!'));
+	// Nest styles.
+	fmt.Println(chalk.Red().Sprint(
+		"Hello",
+		chalk.Underline().BgBlue().Sprint("world"),
+		"!",
+	))
 
-// Pass in multiple arguments
-log(chalk.blue('Hello', 'World!', 'Foo', 'bar', 'biz', 'baz'));
+	// Truecolor, downsampled automatically on limited terminals.
+	fmt.Println(chalk.Hex("#DEADED").Bold().Sprint("Bold gray!"))
 
-// Nest styles
-log(chalk.red('Hello', chalk.underline.bgBlue('world') + '!'));
-
-// Nest styles of the same type even (color, underline, background)
-log(chalk.green(
-	'I am a green line ' +
-	chalk.blue.underline.bold('with a blue substring') +
-	' that becomes green again!'
-));
-
-// ES2015 template literal
-log(`
-CPU: ${chalk.red('90%')}
-RAM: ${chalk.green('40%')}
-DISK: ${chalk.yellow('70%')}
-`);
-
-// Use RGB colors in terminal emulators that support it.
-log(chalk.rgb(123, 45, 67).underline('Underlined reddish color'));
-log(chalk.hex('#DEADED').bold('Bold gray!'));
+	// Reuse a chain.
+	warning := chalk.Yellow().Bold()
+	fmt.Println(warning.Sprintf("%d files skipped", 12))
+}
 ```
 
 Easily define your own themes:
 
-```js
-import chalk from 'chalk';
+```go
+var (
+	Error   = chalk.Bold().Red()
+	Warning = chalk.Hex("#FFA500")
+)
 
-const error = chalk.bold.red;
-const warning = chalk.hex('#FFA500'); // Orange color
-
-console.log(error('Error!'));
-console.log(warning('Warning!'));
+fmt.Println(Error.Sprint("Error!"))
+fmt.Println(Warning.Sprint("Warning!"))
 ```
 
-Take advantage of console.log [string substitution](https://nodejs.org/docs/latest/api/console.html#console_console_log_data_args):
+## API mapping
 
-```js
-import chalk from 'chalk';
+| chalk (JavaScript) | chalk-go |
+| --- | --- |
+| `chalk.red('foo')` | `chalk.Red().Sprint("foo")` |
+| `chalk.red.bold.underline('foo')` | `chalk.Red().Bold().Underline().Sprint("foo")` |
+| `chalk('hello', 'there')` | `chalk.Sprint("hello", "there")` |
+| ``chalk.red(`${n} files`)`` | `chalk.Red().Sprintf("%d files", n)` |
+| `console.log(chalk.red('foo'))` | `chalk.Red().Println("foo")` |
+| `process.stderr.write(chalk.red('foo'))` | `chalk.Red().Fprint(os.Stderr, "foo")` |
+| `chalk.level` | `chalk.Default.Level()` / `style.Level()` |
+| `chalk.level = 2` | `chalk.Default.SetLevel(2)` |
+| `new Chalk({level: 2})` | `chalk.New(chalk.WithLevel(2))` (or `chalk.MustNew`) |
+| `new Chalk()` | `chalk.New()` — level is auto-detected |
+| `chalkStderr` | `chalk.Stderr` |
+| `chalk.rgb(255, 136, 0)('foo')` | `chalk.RGB(255, 136, 0).Sprint("foo")` |
+| `chalk.hex('#FF8800')('foo')` | `chalk.Hex("#FF8800").Sprint("foo")` |
+| `chalk.ansi256(196)('foo')` | `chalk.Ansi256(196).Sprint("foo")` |
+| `chalk.bgRgb(…)` / `chalk.underlineRgb(…)` | `chalk.BgRGB(…)` / `chalk.UnderlineRGB(…)` |
+| `chalk.visible('foo')` | `chalk.Visible().Sprint("foo")` |
+| `chalk[name]('foo')` | `style, err := chalk.By(name)` then `style.Sprint("foo")` |
+| `modifierNames`, `colorNames`, … | `chalk.ModifierNames`, `chalk.ColorNames`, … |
+| `import styles from '#ansi-styles'` | `github.com/chalk/chalk-go/ansistyles` |
+| `import {supportsColor} from '#supports-color'` | `github.com/chalk/chalk-go/supportscolor` |
 
-const name = 'Sindre';
-console.log(chalk.green('Hello %s'), name);
-//=> 'Hello Sindre'
+Every one of chalk's 67 styles exists in three places: as a method on `Style`, as a method on `*Instance`, and as a package-level function bound to `Default`. All of them are generated by `gen/main.go` from the style table.
+
+### Levels
+
+| Level | Constant | Meaning |
+| --- | --- | --- |
+| 0 | `chalk.LevelNone` | All colors disabled |
+| 1 | `chalk.LevelBasic` | Basic 16-color support |
+| 2 | `chalk.LevelAnsi256` | 256-color support |
+| 3 | `chalk.LevelTrueColor` | 16 million color support |
+
+`chalk.New(chalk.WithLevel(n))` returns `ErrInvalidLevel` for anything outside 0–3, matching the JavaScript error message `the level should be an integer from 0 to 3`. Omitting `WithLevel` performs auto-detection, exactly like `new Chalk()`.
+
+`Style` is an immutable value type, so a chain never mutates its parent. A chain still reads its level from the `*Instance` it started on, so changing that instance's level changes what every chain derived from it renders.
+
+### supportscolor
+
+```go
+support := supportscolor.Stdout()
+if support == nil {
+	// No color support. Equivalent to the JavaScript `false`.
+}
 ```
 
-## API
+`supportscolor.Detect(supportscolor.Options{Env: …, Argv: …, HaveStream: …, IsTTY: …})` exposes the whole 19-step decision tree with injectable environment and arguments, which is what makes the force-color test suite runnable without spawning subprocesses.
 
-### chalk.`<style>[.<style>...](string, [string...])`
+## Fidelity
 
-Example: `chalk.red.bold.underline('Hello', 'world');`
+The port is verified three ways.
 
-Chain [styles](#styles) and call the last one as a method with a string argument. Order doesn't matter, and later styles take precedent in case of a conflict. This simply means that `chalk.red.yellow.green` is equivalent to `chalk.green`.
+1. **Golden corpus.** `tools/gen-golden.mjs` imports the original `source/index.js` and emits `testdata/golden.json`: the full 67-entry style table, all five name lists, 33k color-conversion rows, and 7,992 rendering cases covering every style at every level, chained styles, argument coercion, newline and CRLF encasement, nested ANSI repair, RGB/hex/ansi256 downsampling, and malformed hex input. `golden_test.go` replays all of it through the public Go API. Mutation testing confirms the corpus is not vacuous: perturbing the rounding mode produces 28,281 failures, and swapping the close-sequence concatenation order produces immediate chain failures.
+2. **Ported test suites.** `test/chalk.js`, `test/instance.js`, `test/level.js`, `test/visible.js`, `test/no-color-support.js` and `test/force-color.js` are ported assertion for assertion. The 32 hand-written `supportscolor` decision-tree cases were validated by running the original `createSupportsColor` in Node with the same environments.
+3. **Ported examples.** `examples/screenshot` reproduces the output of `examples/screenshot.js` byte for byte, and `examples/rainbow` reproduces `examples/rainbow.js` byte for byte — including the locally reimplemented `color-convert` HSL conversion. Both are asserted in tests.
 
-Multiple arguments will be separated by space.
+### Numeric details worth knowing
 
-### chalk.level
+JavaScript's `Math.round` rounds halves toward positive infinity; Go's `math.Round` rounds halves away from zero. Every rounding site in the port uses `math.Floor(x + 0.5)` instead. The `value == 0` and `value == 2` checks in `ansi256ToAnsi` are exact float comparisons in the original and remain exact here.
 
-Specifies the level of color support.
+`hexToRgb` uses an unanchored `[0-9a-f]{6}|[0-9a-f]{3}` search, so it accepts garbage the same way the original does: `"abcd"` → `(170, 187, 204)`, `"#12345"` → `(17, 34, 51)`, `"xyz#FF0000!"` → `(255, 0, 0)`, and anything unmatched → black.
 
-Color support is automatically detected, but you can override it by setting the `level` property. You should however only do this in your own code as it applies globally to all Chalk consumers.
+## Intentional divergences
 
-If you need to change this in a reusable module, create a new instance:
+These are the only places where behaviour differs, and each is forced by the language.
 
-```js
-import {Chalk} from 'chalk';
+1. **Level write-through.** JavaScript allows `chain.level = 2`, which writes through to the originating instance. `Style` is an immutable value in Go, so this is spelled `chain.Instance().SetLevel(2)`.
+2. **`Sprint` always joins with a single space.** `fmt.Sprint` only inserts spaces between two non-string operands; chalk always joins its arguments with `' '`. `Style.Sprint` follows chalk, so `chalk.Sprint("hello", "there")` is `"hello there"`.
+3. **No array-to-string coercion.** `chalk(['hello', 'there'])` is `"hello,there"` in JavaScript because `String(array)` joins with a comma. Go has no such coercion; a slice formats as `fmt.Sprint` renders it, so `chalk.Sprint([]string{"hello", "there"})` is `"[hello there]"`. Tests pin the Go behaviour explicitly.
+4. **`browser.js` is not ported.** The Chromium user-agent sniffing in `source/vendor/supports-color/browser.js` has no meaning for a Go program.
+5. **`Function.prototype` methods become method values.** A Go method has no `apply`, `bind` or `call`. The two tests exercising them on chalk builders are ported through the language's own equivalents: the method expression `chalk.Style.Sprint`, which takes its receiver as the first argument, stands in for `Reflect.apply` and `.call`, and the method value `style.Sprint`, which closes over its receiver, stands in for `.bind`. Both are asserted against the original's expected output.
+6. **Style-identity caching is unobservable.** `t.is(instance.rgb, instance.rgb)` asserts a memoised getter. `Style` is a value type, so there is no identity to assert and no allocation to memoise.
 
-const customChalk = new Chalk({level: 0});
+Two smaller notes: the benchmark suite drops the two tagged-template benchmarks, since chalk v6 no longer supports tagged templates and they reduce to plain string renders, and adds a multiple-operand benchmark plus per-level downsampling benchmarks instead. `Instance` stores its level in an `atomic.Int32`, so concurrent reads and writes are safe — a concern Node's single-threaded model never had.
+
+## Development
+
+```sh
+go generate ./...   # regenerate styles_gen.go from the style table
+go test ./...       # golden corpus + ported suites + example fidelity
+go test -bench .    # benchmarks
 ```
 
-| Level | Description |
-| :---: | :--- |
-| `0` | All colors disabled |
-| `1` | Basic color support (16 colors) |
-| `2` | 256 color support |
-| `3` | Truecolor support (16 million colors) |
+To regenerate the golden corpus against a checkout of the original repository:
 
-Both the `level` option and the `level` property throw for anything that is not an integer from 0 to 3. Omit the option, or pass `undefined`, to have the level detected instead.
-
-### supportsColor
-
-Detect whether the terminal [supports color](https://github.com/chalk/supports-color). Used internally and handled for you, but exposed for convenience.
-
-Can be overridden by the user with the flags `--color` and `--no-color`. For situations where using `--color` is not possible, use the environment variable `FORCE_COLOR=1` (level 1), `FORCE_COLOR=2` (level 2), or `FORCE_COLOR=3` (level 3) to forcefully enable color, or `FORCE_COLOR=0` to forcefully disable. A numeric `FORCE_COLOR` overrides the detected color support and sets the level directly, meaning the terminal cannot raise it to a higher level. Use `FORCE_COLOR=true` to instead only enable color and let the level be detected.
-
-Explicit 256/Truecolor mode can be enabled using the `--color=256` and `--color=16m` flags, respectively. These take precedence over a non-zero numeric `FORCE_COLOR`.
-
-### chalkStderr and supportsColorStderr
-
-`chalkStderr` contains a separate instance configured with color support detected for `stderr` stream instead of `stdout`. Override rules from `supportsColor` apply to this too. `supportsColorStderr` is exposed for convenience.
-
-### modifierNames, foregroundColorNames, backgroundColorNames, underlineColorNames, and colorNames
-
-All supported style strings are exposed as an array of strings for convenience. `colorNames` is the combination of `foregroundColorNames` and `backgroundColorNames`. Underline color names are kept separate in `underlineColorNames`.
-
-This can be useful if you wrap Chalk and need to validate input:
-
-```js
-import {modifierNames, foregroundColorNames} from 'chalk';
-
-console.log(modifierNames.includes('bold'));
-//=> true
-
-console.log(foregroundColorNames.includes('pink'));
-//=> false
+```sh
+node tools/gen-golden.mjs /path/to/chalk testdata/golden.json
 ```
 
-## Styles
+`TestGeneratedStylesAreUpToDate` fails if `styles_gen.go` drifts from the generator, so the table and the API cannot fall out of sync.
 
-### Modifiers
+## License
 
-- `reset` - Reset the current style.
-- `bold` - Make the text bold.
-- `dim` - Make the text have lower opacity.
-- `italic` - Make the text italic. *(Not widely supported)*
-- `underline` - Put a horizontal line below the text. *(Not widely supported)*
-- `underlineDouble` - Put a double horizontal line below the text. *(Not widely supported)*
-- `underlineCurly` - Put a curly horizontal line below the text. *(Not widely supported)*
-- `underlineDotted` - Put a dotted horizontal line below the text. *(Not widely supported)*
-- `underlineDashed` - Put a dashed horizontal line below the text. *(Not widely supported)*
-- `overline` - Put a horizontal line above the text. *(Not widely supported)*
-- `inverse` - Invert background and foreground colors.
-- `hidden` - Print the text but make it invisible.
-- `strikethrough` - Puts a horizontal line through the center of the text. *(Not widely supported)*
-- `visible` - Print the text only when Chalk has a color level above zero. Can be useful for things that are purely cosmetic.
-
-### Colors
-
-- `black`
-- `red`
-- `green`
-- `yellow`
-- `blue`
-- `magenta`
-- `cyan`
-- `white`
-- `blackBright` (alias: `gray`, `grey`)
-- `redBright`
-- `greenBright`
-- `yellowBright`
-- `blueBright`
-- `magentaBright`
-- `cyanBright`
-- `whiteBright`
-
-### Background colors
-
-- `bgBlack`
-- `bgRed`
-- `bgGreen`
-- `bgYellow`
-- `bgBlue`
-- `bgMagenta`
-- `bgCyan`
-- `bgWhite`
-- `bgBlackBright` (alias: `bgGray`, `bgGrey`)
-- `bgRedBright`
-- `bgGreenBright`
-- `bgYellowBright`
-- `bgBlueBright`
-- `bgMagentaBright`
-- `bgCyanBright`
-- `bgWhiteBright`
-
-### Underline colors
-
-The underline color is set independently of the text color, so the color is only visible when an underline style is also applied. For example, `chalk.underlineRed.underlineCurly('typo')` renders a red squiggle below otherwise unstyled text. *(Not widely supported)*
-
-Unlike text and background colors, there is no basic 16-color form for underline colors, so they always use the 256-color escape. At level 1 they are downsampled to the first 16 palette entries rather than to a basic color code.
-
-- `underlineBlack`
-- `underlineRed`
-- `underlineGreen`
-- `underlineYellow`
-- `underlineBlue`
-- `underlineMagenta`
-- `underlineCyan`
-- `underlineWhite`
-- `underlineBlackBright` (alias: `underlineGray`, `underlineGrey`)
-- `underlineRedBright`
-- `underlineGreenBright`
-- `underlineYellowBright`
-- `underlineBlueBright`
-- `underlineMagentaBright`
-- `underlineCyanBright`
-- `underlineWhiteBright`
-
-## 256 and Truecolor color support
-
-Chalk supports 256 colors and [Truecolor](https://github.com/termstandard/colors) (16 million colors) on supported terminal apps.
-
-Colors are downsampled from 16 million RGB values to an ANSI color format that is supported by the terminal emulator (or by specifying `{level: n}` as a Chalk option). For example, Chalk configured to run at level 1 (basic color support) will downsample an RGB value of #FF0000 (red) to 91 (ANSI escape for bright red). The same applies to `ansi256` values, so `chalk.ansi256(196)` also becomes 91 at level 1.
-
-Examples:
-
-- `chalk.hex('#DEADED').underline('Hello, world!')`
-- `chalk.rgb(15, 100, 204).inverse('Hello!')`
-
-Background versions of these models are prefixed with `bg` and the first letter of the model capitalized (e.g. `hex` for foreground colors and `bgHex` for background colors).
-
-- `chalk.bgHex('#DEADED').underline('Hello, world!')`
-- `chalk.bgRgb(15, 100, 204).inverse('Hello!')`
-
-Underline versions are prefixed with `underline` in the same way (e.g. `hex` for foreground colors and `underlineHex` for underline colors). They only take effect when an underline style is also applied.
-
-- `chalk.underlineHex('#DEADED').underlineCurly('Hello, world!')`
-- `chalk.underlineRgb(15, 100, 204).underline('Hello!')`
-
-The following color models can be used:
-
-- [`rgb`](https://en.wikipedia.org/wiki/RGB_color_model) - Example: `chalk.rgb(255, 136, 0).bold('Orange!')`
-- [`hex`](https://en.wikipedia.org/wiki/Web_colors#Hex_triplet) - Example: `chalk.hex('#FF8800').bold('Orange!')`
-- [`ansi256`](https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit) - Example: `chalk.bgAnsi256(194)('Honeydew, more or less')`
-
-## Browser support
-
-Since Chrome 69, ANSI escape codes are natively supported in the developer console.
-
-## Windows
-
-If you're on Windows, do yourself a favor and use [Windows Terminal](https://github.com/microsoft/terminal) instead of `cmd.exe`.
-
-## FAQ
-
-### Why not switch to a smaller coloring package?
-
-Chalk may be larger, but there is a reason for that. It offers a more user-friendly API, well-documented types, supports millions of colors, and covers edge cases that smaller alternatives miss. Chalk is mature, reliable, and built to last.
-
-But beyond the technical aspects, there's something more critical: trust and long-term maintenance. I have been active in open source for over a decade, and I'm committed to keeping Chalk maintained. Smaller packages might seem appealing now, but there's no guarantee they will be around for the long term, or that they won't become malicious over time.
-
-Chalk is also likely already in your dependency tree (since 100K+ packages depend on it), so switching won’t save space—in fact, it might increase it. npm deduplicates dependencies, so multiple Chalk instances turn into one, but adding another package alongside it will increase your overall size.
-
-If the goal is to clean up the ecosystem, switching away from Chalk won’t even make a dent. The real problem lies with packages that have very deep dependency trees (for example, those including a lot of polyfills). Chalk has no dependencies. It's better to focus on impactful changes rather than minor optimizations.
-
-If absolute package size is important to you, I also maintain [yoctocolors](https://github.com/sindresorhus/yoctocolors), one of the smallest color packages out there.
-
-*\- [Sindre](https://github.com/sindresorhus)*
-
-### But the smaller coloring package has benchmarks showing it is faster
-
-[Micro-benchmarks are flawed](https://sindresorhus.com/blog/micro-benchmark-fallacy) because they measure performance in unrealistic, isolated scenarios, often giving a distorted view of real-world performance. Don't believe marketing fluff. All the coloring packages are more than fast enough.
-
-## Related
-
-- [chalk-template](https://github.com/chalk/chalk-template) - [Tagged template literals](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals#tagged_templates) support for this module
-- [chalk-cli](https://github.com/chalk/chalk-cli) - CLI for this module
-- [ansi-styles](https://github.com/chalk/ansi-styles) - ANSI escape codes for styling strings in the terminal
-- [supports-color](https://github.com/chalk/supports-color) - Detect whether a terminal supports color
-- [strip-ansi](https://github.com/chalk/strip-ansi) - Strip ANSI escape codes
-- [strip-ansi-stream](https://github.com/chalk/strip-ansi-stream) - Strip ANSI escape codes from a stream
-- [has-ansi](https://github.com/chalk/has-ansi) - Check if a string has ANSI escape codes
-- [ansi-regex](https://github.com/chalk/ansi-regex) - Regular expression for matching ANSI escape codes
-- [wrap-ansi](https://github.com/chalk/wrap-ansi) - Wordwrap a string with ANSI escape codes
-- [slice-ansi](https://github.com/chalk/slice-ansi) - Slice a string with ANSI escape codes
-- [color-convert](https://github.com/qix-/color-convert) - Converts colors between different models
-- [chalk-animation](https://github.com/bokub/chalk-animation) - Animate strings in the terminal
-- [gradient-string](https://github.com/bokub/gradient-string) - Apply color gradients to strings
-- [chalk-pipe](https://github.com/LitoMore/chalk-pipe) - Create chalk style schemes with simpler style strings
-- [terminal-link](https://github.com/sindresorhus/terminal-link) - Create clickable links in the terminal
-
-*(Not accepting additional entries)*
-
-## Maintainers
-
-- [Sindre Sorhus](https://github.com/sindresorhus)
-- [Josh Junon](https://github.com/qix-)
+MIT, unchanged from the original project. See [license](license).
